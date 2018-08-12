@@ -54,8 +54,15 @@ func _validateFiles(currentFile string, files *[]string) {
 * text of each one, applying necessary preprocessing and formatting
 * rules to it so it can be used to build a model, and returns it
  */
-func formatText(files []string) {
+func formatText(files []string) []string {
+	// Some helpful regexes that we'll need later
+	directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
+	dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
+	directionTag := regexp.MustCompile(`(\(.*?\))`) // Match a direction (within another line)
+	speakerTag := regexp.MustCompile(`([A-Z]*:)`)   // Match speaker at start of dialogue line
+
 	for i := range files {
+		// Read file in as string
 		b, err := ioutil.ReadFile(files[i])
 		if err != nil {
 			fmt.Printf("Error reading file %s, skipping it", files[i])
@@ -63,20 +70,16 @@ func formatText(files []string) {
 		}
 
 		text := string(b)
-		text = "<start>\n<scene>\n" + text + "\n</scene>\n<end>"
-
-		directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
-		dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
-		directionTag := regexp.MustCompile(`(\(.*?\))`) // Match a direction (within another line)
-		speakerTag := regexp.MustCompile(`([A-Z]*:)`)   // Match speaker at start of dialogue line
+		text = "<start>\n<scene>\n" + text + "\n</scene>\n<end>" // Add start and end tags to text
 
 		lines := strings.Split(text, "\n")
-		lines[2] = "<lsetting>" + lines[2] + "</lsetting>"
+		lines[2] = "<lsetting>" + lines[2] + "</lsetting>" // Add <lsetting> tag to setting of first scene
 		for j := 0; j < len(lines); j++ {
 			// If we find 3 blank lines, its a scene change
 			if lines[j] == "" && lines[j+1] == "" && lines[j+2] == "" {
+				// Add closing scene tag
 				lines[j] = "</scene>"
-				for lines[j+1] == "" {
+				for lines[j+1] == "" { // Skip blank lines until we reach next scene
 					j = j + 1
 				}
 				lines[j] = "<scene>"
@@ -84,22 +87,19 @@ func formatText(files []string) {
 				continue
 			}
 
-			if dialogueLine.MatchString(lines[j]) {
+			if dialogueLine.MatchString(lines[j]) { // If this line is dialogue
 				lines[j] = "<ldialogue>" + lines[j] + "</ldialogue>"
 				lines[j] = directionTag.ReplaceAllString(lines[j], "<direction>${1}</direction>")
 				lines[j] = speakerTag.ReplaceAllString(lines[j], "<speaker>${1}</speaker>")
-			}
-
-			if directionLine.MatchString(lines[j]) {
+			} else if directionLine.MatchString(lines[j]) { // If this line is a stage direction
 				lines[j] = "<ldirection>" + lines[j] + "</ldirection>"
 			}
 		}
 
-		fmt.Println("RESULTS:")
-		for _, v := range lines {
-			fmt.Println(v)
-		}
+		// fmt.Print(strings.Join(lines, "\n"))
+		files[i] = strings.Join(lines, "\n")
 	}
+	return files
 }
 
 // func buildModel(files) {

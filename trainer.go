@@ -12,7 +12,7 @@ import (
 var n = 2
 
 func main() {
-	files := validateFiles("./training/test")
+	files := readFiles("./training/test")
 
 	ch := make(chan string)
 	for _, v := range files {
@@ -28,18 +28,19 @@ func main() {
 }
 
 /**
-* Takes in a list of files/folders and checks to make
-* sure they exist, then returns an array of the
-* individual files in all the directories
+* Takes in a list of files/folders and recursively
+* iterates through them, reading in the text from
+* each file as a string and finally returning a
+* string array of all of them
  */
-func validateFiles(filepath ...string) []string {
+func readFiles(filepath ...string) []string {
 	ret := make([]string, 0, 10)
 	for _, v := range filepath {
-		_validateFiles(v, &ret)
+		_readFiles(v, &ret)
 	}
 	return ret
 }
-func _validateFiles(currentFile string, files *[]string) {
+func _readFiles(currentFile string, files *[]string) {
 	file, err := os.Stat(currentFile)
 	if err != nil {
 		fmt.Printf("Error accessing %s\n", currentFile)
@@ -49,37 +50,35 @@ func _validateFiles(currentFile string, files *[]string) {
 	if file.IsDir() {
 		if dir, err := ioutil.ReadDir(currentFile); err == nil {
 			for _, v := range dir {
-				_validateFiles(path.Join(currentFile, v.Name()), files)
+				_readFiles(path.Join(currentFile, v.Name()), files)
 			}
 		} else {
 			fmt.Printf("Error reading directory %s, skipping\n", currentFile)
 			return
 		}
 	} else {
-		*files = append(*files, currentFile)
+		// Read file in as string
+		if b, err := ioutil.ReadFile(currentFile); err == nil {
+			*files = append(*files, string(b))
+		} else {
+			fmt.Printf("Error reading file %s, skipping it\n", currentFile)
+			return
+		}
 	}
 }
 
 /**
-* Takes in the list of files from validateFiles() and reads in the
-* text of each one, applying necessary preprocessing and formatting
-* rules to it so it can be used to build a model, and returns it
+* Takes in a string of training data (one episode of seinfeld) and
+* applies preprocessing/formatting rules so it can be used to build
+* a model. Returns the formatted string to the given channel.
  */
-func formatText(filepath string, ch chan string) {
+func formatText(text string, ch chan string) {
 	// Some helpful regexes that we'll need later
 	directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
 	dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
 	directionTag := regexp.MustCompile(`(\(.*?\))`) // Match a direction (within another line)
 	speakerTag := regexp.MustCompile(`([A-Z]*:)`)   // Match speaker at start of dialogue line
 
-	// Read file in as string
-	b, err := ioutil.ReadFile(filepath)
-	if err != nil {
-		fmt.Printf("Error reading file %s, skipping it", filepath)
-		return
-	}
-
-	text := string(b)
 	text = "<start>\n<scene>\n" + text + "\n</scene>\n<end>" // Add start and end tags to text
 
 	lines := strings.Split(text, "\n")                 // Split text on newlines

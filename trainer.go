@@ -65,9 +65,10 @@ func formatText(files []string) {
 		text := string(b)
 		text = "<start>\n<scene>\n" + text + "\n</scene>\n<end>"
 
-		dialogueLine := regexp.MustCompile(`^[A-Z]*:`)
-		directionLine := regexp.MustCompile(`^[\[\(]`)
-		directionTag := regexp.MustCompile(`(\(.*?\))`)
+		directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
+		dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
+		directionTag := regexp.MustCompile(`(\(.*?\))`) // Match a direction (within another line)
+		speakerTag := regexp.MustCompile(`([A-Z]*:)`)   // Match speaker at start of dialogue line
 
 		lines := strings.Split(text, "\n")
 		lines[2] = "<lsetting>" + lines[2] + "</lsetting>"
@@ -86,6 +87,7 @@ func formatText(files []string) {
 			if dialogueLine.MatchString(lines[j]) {
 				lines[j] = "<ldialogue>" + lines[j] + "</ldialogue>"
 				lines[j] = directionTag.ReplaceAllString(lines[j], "<direction>${1}</direction>")
+				lines[j] = speakerTag.ReplaceAllString(lines[j], "<speaker>${1}</speaker>")
 			}
 
 			if directionLine.MatchString(lines[j]) {

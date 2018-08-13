@@ -12,19 +12,24 @@ import (
 var n = 2
 
 func main() {
-	files := readFiles("./training/test")
+	files := ReadFiles("./training/test")
 
-	ch := make(chan string)
+	// Process the text from each file in parallel
+	ch := make(chan []string)
 	for _, v := range files {
-		go formatText(v, ch)
+		go FormatText(v, ch)
 	}
 
-	data := make([]string, len(files))
+	// Get the data back from the formatText() calls,
+	// each call returns a string array of the lines
+	// of its file, so datas is an array of those
+	// string arrays
+	datas := make([][]string, len(files))
 	for i := range files {
-		data[i] = <-ch
+		datas[i] = <-ch
 	}
 
-	fmt.Print(data)
+	fmt.Print(datas)
 }
 
 /**
@@ -33,7 +38,7 @@ func main() {
 * each file as a string and finally returning a
 * string array of all of them
  */
-func readFiles(filepath ...string) []string {
+func ReadFiles(filepath ...string) []string {
 	ret := make([]string, 0, 10)
 	for _, v := range filepath {
 		_readFiles(v, &ret)
@@ -72,7 +77,7 @@ func _readFiles(currentFile string, files *[]string) {
 * applies preprocessing/formatting rules so it can be used to build
 * a model. Returns the formatted string to the given channel.
  */
-func formatText(text string, ch chan string) {
+func FormatText(text string, ch chan []string) {
 	// Some helpful regexes that we'll need later
 	directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
 	dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
@@ -104,9 +109,5 @@ func formatText(text string, ch chan string) {
 			lines[j] = "<ldirection>" + lines[j] + "</ldirection>"
 		}
 	}
-	ch <- strings.Join(lines, "\n")
+	ch <- lines
 }
-
-// func buildModel(files) {
-
-// }

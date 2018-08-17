@@ -11,8 +11,8 @@ import (
 
 type FrequencyObj struct {
 	tokens  []string
-	n1grams map[string]int
-	ngrams  map[string]int
+	n1grams *map[string]int
+	ngrams  *map[string]int
 }
 
 var n = 2
@@ -36,16 +36,17 @@ func main() {
 	}
 	close(ch1)
 
-	ch2 := make(chan FrequencyObj)
+	ch2 := make(chan *FrequencyObj)
 	for i := range datas {
 		go CountFrequencies(datas[i], 2, ch2)
 	}
-	frequencies := make([]FrequencyObj, len(datas))
+	frequencies := make([]*FrequencyObj, len(datas))
 	for i := range datas {
 		frequencies[i] = <-ch2
 	}
+	frequency := mergeFreqObjs(frequencies...)
 
-	fmt.Print(keys(&frequencies[0].n1grams))
+	fmt.Print(keys(frequency.n1grams))
 }
 
 /**
@@ -128,7 +129,7 @@ func FormatText(text string, ch chan []string) {
 	ch <- lines
 }
 
-func CountFrequencies(lines []string, N int, ch chan FrequencyObj) {
+func CountFrequencies(lines []string, N int, ch chan *FrequencyObj) {
 	tokens := make(map[string]int, 0) // Array of all tokens (1-grams)
 	n1grams := make(map[string]int)   // Map of all (n-1)-grams to their frequencies
 	ngrams := make(map[string]int)    // Map of all n-grams to their frequencies
@@ -147,5 +148,5 @@ func CountFrequencies(lines []string, N int, ch chan FrequencyObj) {
 			}
 		}
 	}
-	ch <- FrequencyObj{tokens: keys(&tokens), n1grams: n1grams, ngrams: ngrams}
+	ch <- &FrequencyObj{tokens: keys(&tokens), n1grams: &n1grams, ngrams: &ngrams}
 }

@@ -19,7 +19,7 @@ var n = 2
 
 func main() {
 	// Read each file into a string array
-	files := ReadFiles("./training/test")
+	files := ReadFiles("../../training/test")
 
 	// Format the text & calculate the ngram
 	// frequencies of each file in parallel

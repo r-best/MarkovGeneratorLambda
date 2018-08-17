@@ -9,27 +9,43 @@ import (
 	"strings"
 )
 
+type FrequencyObj struct {
+	tokens  []string
+	n1grams map[string]int
+	ngrams  map[string]int
+}
+
 var n = 2
 
 func main() {
 	files := ReadFiles("./training/test")
 
 	// Process the text from each file in parallel
-	ch := make(chan []string)
+	ch1 := make(chan []string)
 	for _, v := range files {
-		go FormatText(v, ch)
+		go FormatText(v, ch1)
 	}
 
 	// Get the data back from the formatText() calls,
 	// each call returns a string array of the lines
-	// of its file, so datas is an array of those
-	// string arrays
+	// of its file, so datas is an array of arrays of
+	// lines
 	datas := make([][]string, len(files))
 	for i := range files {
-		datas[i] = <-ch
+		datas[i] = <-ch1
+	}
+	close(ch1)
+
+	ch2 := make(chan FrequencyObj)
+	for i := range datas {
+		go CountFrequencies(datas[i], 2, ch2)
+	}
+	frequencies := make([]FrequencyObj, len(datas))
+	for i := range datas {
+		frequencies[i] = <-ch2
 	}
 
-	fmt.Print(datas)
+	fmt.Print(keys(&frequencies[0].n1grams))
 }
 
 /**
@@ -110,4 +126,26 @@ func FormatText(text string, ch chan []string) {
 		}
 	}
 	ch <- lines
+}
+
+func CountFrequencies(lines []string, N int, ch chan FrequencyObj) {
+	tokens := make(map[string]int, 0) // Array of all tokens (1-grams)
+	n1grams := make(map[string]int)   // Map of all (n-1)-grams to their frequencies
+	ngrams := make(map[string]int)    // Map of all n-grams to their frequencies
+	for _, line := range lines {
+		words := strings.Fields(line)
+
+		if len(words) < N {
+			continue
+		}
+
+		for i := N - 1; i < len(words); i++ {
+			tokens[words[i]]++
+			if i >= N-1 {
+				n1grams[strings.Join(words[i-N+1:i], `\s`)]++
+				ngrams[strings.Join(words[i-N+1:i+1], `\s`)]++
+			}
+		}
+	}
+	ch <- FrequencyObj{tokens: keys(&tokens), n1grams: n1grams, ngrams: ngrams}
 }

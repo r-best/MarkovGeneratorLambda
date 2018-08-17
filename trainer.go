@@ -18,36 +18,37 @@ type FrequencyObj struct {
 var n = 2
 
 func main() {
+	// Read each file into a string array
 	files := ReadFiles("./training/test")
 
-	// Process the text from each file in parallel
-	ch1 := make(chan []string)
-	for _, v := range files {
-		go FormatText(v, ch1)
+	// Format the text & calculate the ngram
+	// frequencies of each file in parallel
+	ch := make(chan *FrequencyObj)
+	for _, text := range files {
+		go func(text string, ch chan *FrequencyObj) {
+			formattedLines := FormatText(text)
+			freq := CountFrequencies(formattedLines, n)
+			ch <- freq
+		}(text, ch)
 	}
 
-	// Get the data back from the formatText() calls,
-	// each call returns a string array of the lines
-	// of its file, so datas is an array of arrays of
-	// lines
-	datas := make([][]string, len(files))
+	// Read the frequency data from each goroutine
+	// as they complete, closing the channel when done
+	frequencies := make([]*FrequencyObj, len(files))
 	for i := range files {
-		datas[i] = <-ch1
+		frequencies[i] = <-ch
 	}
-	close(ch1)
+	close(ch)
 
-	ch2 := make(chan *FrequencyObj)
-	for i := range datas {
-		go CountFrequencies(datas[i], 2, ch2)
-	}
-	frequencies := make([]*FrequencyObj, len(datas))
-	for i := range datas {
-		frequencies[i] = <-ch2
-	}
-	close(ch2)
+	// Sum all the frequency data together
 	frequency := mergeFreqObjs(frequencies...)
 
+	// Use the frequencies to calculate the probability
+	// of each ngram given each (n-1)gram
+	// I wish this part could be parallelized, it's
+	// the part that takes the majority of the runtime
 	P := CalculateProbabilities(&frequency)
+
 	fmt.Print(P)
 }
 
@@ -96,7 +97,7 @@ func _readFiles(currentFile string, files *[]string) {
 * applies preprocessing/formatting rules so it can be used to build
 * a model. Returns the formatted string to the given channel.
  */
-func FormatText(text string, ch chan []string) {
+func FormatText(text string) []string {
 	// Some helpful regexes that we'll need later
 	directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
 	dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
@@ -128,10 +129,10 @@ func FormatText(text string, ch chan []string) {
 			lines[j] = "<ldirection> " + lines[j] + " </ldirection>"
 		}
 	}
-	ch <- lines
+	return lines
 }
 
-func CountFrequencies(lines []string, N int, ch chan *FrequencyObj) {
+func CountFrequencies(lines []string, N int) *FrequencyObj {
 	tokens := make(map[string]int, 0) // Array of all tokens (1-grams)
 	n1grams := make(map[string]int)   // Map of all (n-1)-grams to their frequencies
 	ngrams := make(map[string]int)    // Map of all n-grams to their frequencies
@@ -150,7 +151,7 @@ func CountFrequencies(lines []string, N int, ch chan *FrequencyObj) {
 			}
 		}
 	}
-	ch <- &FrequencyObj{tokens: keys(&tokens), n1grams: &n1grams, ngrams: &ngrams}
+	return &FrequencyObj{tokens: keys(&tokens), n1grams: &n1grams, ngrams: &ngrams}
 }
 
 func CalculateProbabilities(freq *FrequencyObj) *map[string]map[string]float64 {

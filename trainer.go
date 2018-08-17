@@ -44,9 +44,11 @@ func main() {
 	for i := range datas {
 		frequencies[i] = <-ch2
 	}
+	close(ch2)
 	frequency := mergeFreqObjs(frequencies...)
 
-	fmt.Print(keys(frequency.n1grams))
+	P := CalculateProbabilities(&frequency)
+	fmt.Print(P)
 }
 
 /**
@@ -114,16 +116,16 @@ func FormatText(text string, ch chan []string) {
 				j = j + 1
 			}
 			lines[j] = "<scene>"
-			lines[j+1] = "<lsetting>" + lines[j+1] + "</lsetting>"
+			lines[j+1] = "<lsetting> " + lines[j+1] + " </lsetting>"
 			continue
 		}
 
 		if dialogueLine.MatchString(lines[j]) { // If this line is dialogue
-			lines[j] = "<ldialogue>" + lines[j] + "</ldialogue>"
-			lines[j] = directionTag.ReplaceAllString(lines[j], "<direction>${1}</direction>")
-			lines[j] = speakerTag.ReplaceAllString(lines[j], "<speaker>${1}</speaker>")
+			lines[j] = "<ldialogue> " + lines[j] + " </ldialogue>"
+			lines[j] = directionTag.ReplaceAllString(lines[j], "<direction> ${1} </direction>")
+			lines[j] = speakerTag.ReplaceAllString(lines[j], "<speaker> ${1} </speaker>")
 		} else if directionLine.MatchString(lines[j]) { // If this line is a stage direction
-			lines[j] = "<ldirection>" + lines[j] + "</ldirection>"
+			lines[j] = "<ldirection> " + lines[j] + " </ldirection>"
 		}
 	}
 	ch <- lines
@@ -143,10 +145,28 @@ func CountFrequencies(lines []string, N int, ch chan *FrequencyObj) {
 		for i := N - 1; i < len(words); i++ {
 			tokens[words[i]]++
 			if i >= N-1 {
-				n1grams[strings.Join(words[i-N+1:i], `\s`)]++
-				ngrams[strings.Join(words[i-N+1:i+1], `\s`)]++
+				n1grams[strings.Join(words[i-N+1:i], ` `)]++
+				ngrams[strings.Join(words[i-N+1:i+1], ` `)]++
 			}
 		}
 	}
 	ch <- &FrequencyObj{tokens: keys(&tokens), n1grams: &n1grams, ngrams: &ngrams}
+}
+
+func CalculateProbabilities(freq *FrequencyObj) *map[string]map[string]float64 {
+	tokens := (*freq).tokens
+	n1grams := (*freq).n1grams
+	ngrams := (*freq).ngrams
+
+	P := make(map[string]map[string]float64)
+	for n1gram := range *n1grams {
+		P[n1gram] = make(map[string]float64)
+		for _, token := range tokens {
+			ngram := n1gram + " " + token
+			if v, ok := (*ngrams)[ngram]; ok {
+				P[n1gram][token] = float64(v) / float64((*n1grams)[n1gram])
+			}
+		}
+	}
+	return &P
 }

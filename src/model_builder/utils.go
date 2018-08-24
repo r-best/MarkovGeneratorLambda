@@ -10,20 +10,15 @@ func keys(m *map[string]int) []string {
 	return keys
 }
 
-func mergeArrays(arrays ...[]string) []string {
-	length := 0
-	for i := range arrays {
-		length += len(arrays[i])
-	}
-
-	array := make([]string, length)
+func mergeArraysUniq(arrays ...[]string) []string {
+	temp := make(map[string]int)
 	for i := range arrays {
 		for j := range arrays[i] {
-			array[i+j] = arrays[i][j]
+			temp[arrays[i][j]] = 1
 		}
 	}
 
-	return array
+	return keys(&temp)
 }
 
 func mergeMaps(maps ...*map[string]int) *map[string]int {
@@ -54,7 +49,7 @@ func mergeFreqObjs(frequencyObjs ...*FrequencyObj) FrequencyObj {
 	}
 
 	return FrequencyObj{
-		tokens:  mergeArrays(tokens...),
+		tokens:  mergeArraysUniq(tokens...),
 		n1grams: mergeMaps(n1grams...),
 		ngrams:  mergeMaps(ngrams...)}
 }

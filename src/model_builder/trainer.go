@@ -20,6 +20,11 @@ type FrequencyObj struct {
 	ngrams  *map[string]int
 }
 
+// ProbabilityModel is just a 2-layer nested map of the following form:
+// 		ProbabilityModel[(n-1)-gram][token] = probability of that (n-1)-gram
+// 		being followed by that token
+type ProbabilityModel map[string]map[string]float64
+
 // N : value of n to use for n-grams
 var N = 3
 
@@ -63,12 +68,10 @@ func main() {
 	WriteModel(P, OutputFilePath)
 }
 
-/**
-* Takes in a list of files/folders and recursively
-* iterates through them, reading in the text from
-* each file as a string and finally returning a
-* string array of all of them
- */
+// ReadFiles takes in a list of files/folders and recursively
+// iterates through them, reading in the text from
+// each file as a string and finally returning a
+// string array of all of them
 func ReadFiles(filepath ...string) []string {
 	ret := make([]string, 0, 10)
 	for _, v := range filepath {
@@ -103,11 +106,9 @@ func _readFiles(currentFile string, files *[]string) {
 	}
 }
 
-/**
-* Takes in a string of training data (one episode of seinfeld) and
-* applies preprocessing/formatting rules so it can be used to build
-* a model. Returns the formatted string to the given channel.
- */
+// FormatText takes in a string of training data (one episode of seinfeld)
+// and applies preprocessing/formatting rules so it can be used to build
+// a model. Returns the formatted string to the given channel.
 func FormatText(text string) []string {
 	// Some helpful regexes that we'll need later
 	directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
@@ -143,6 +144,9 @@ func FormatText(text string) []string {
 	return lines
 }
 
+// CountFrequencies takes in an array of the lines of a training file and a value of N
+// to use, and generates all the n-grams and (n-1)-grams it can find, returning the
+// information in a new FrequencyObj
 func CountFrequencies(lines []string, N int) *FrequencyObj {
 	tokens := make(map[string]int, 0) // Array of all tokens (1-grams)
 	n1grams := make(map[string]int)   // Map of all (n-1)-grams to their frequencies
@@ -168,12 +172,12 @@ func CountFrequencies(lines []string, N int) *FrequencyObj {
 // CalculateProbabilities takes in a FrequencyObj and uses the frequency data
 // it holds to calculate for every (n-1)-gram, what is the probability each
 // possible token has of occurring next
-func CalculateProbabilities(freq *FrequencyObj) *map[string]map[string]float64 {
+func CalculateProbabilities(freq *FrequencyObj) *ProbabilityModel {
 	tokens := (*freq).tokens
 	n1grams := (*freq).n1grams
 	ngrams := (*freq).ngrams
 
-	P := make(map[string]map[string]float64)
+	P := make(ProbabilityModel)
 	for n1gram := range *n1grams {
 		P[n1gram] = make(map[string]float64)
 		for _, token := range tokens {
@@ -187,7 +191,7 @@ func CalculateProbabilities(freq *FrequencyObj) *map[string]map[string]float64 {
 }
 
 // WriteModel writes the probability model P to the given file
-func WriteModel(P *map[string]map[string]float64, filepath string) {
+func WriteModel(P *ProbabilityModel, filepath string) {
 	obj, err := json.MarshalIndent(P, "", "	")
 
 	if err != nil {

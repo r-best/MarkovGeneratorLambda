@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,13 +10,21 @@ import (
 	"strings"
 )
 
+// FrequencyObj stores a list of all tokens (1-grams)
+// that appear in a file, as well as counts of the number
+// of times the n-grams and (n-1)-grams made from those
+// tokens appear
 type FrequencyObj struct {
 	tokens  []string
 	n1grams *map[string]int
 	ngrams  *map[string]int
 }
 
-var n = 2
+// N : value of n to use for n-grams
+var N = 3
+
+// OutputFilePath : path to the file where the probability model will be written
+var OutputFilePath = "./outputbooyah.json"
 
 func main() {
 	// Read each file into a string array
@@ -27,7 +36,7 @@ func main() {
 	for _, text := range files {
 		go func(text string, ch chan *FrequencyObj) {
 			formattedLines := FormatText(text)
-			freq := CountFrequencies(formattedLines, n)
+			freq := CountFrequencies(formattedLines, N)
 			ch <- freq
 		}(text, ch)
 	}
@@ -49,7 +58,9 @@ func main() {
 	// the part that takes the majority of the runtime
 	P := CalculateProbabilities(&frequency)
 
-	fmt.Print(P)
+	fmt.Println(P)
+
+	WriteModel(P, OutputFilePath)
 }
 
 /**
@@ -154,6 +165,9 @@ func CountFrequencies(lines []string, N int) *FrequencyObj {
 	return &FrequencyObj{tokens: keys(&tokens), n1grams: &n1grams, ngrams: &ngrams}
 }
 
+// CalculateProbabilities takes in a FrequencyObj and uses the frequency data
+// it holds to calculate for every (n-1)-gram, what is the probability each
+// possible token has of occurring next
 func CalculateProbabilities(freq *FrequencyObj) *map[string]map[string]float64 {
 	tokens := (*freq).tokens
 	n1grams := (*freq).n1grams
@@ -170,4 +184,18 @@ func CalculateProbabilities(freq *FrequencyObj) *map[string]map[string]float64 {
 		}
 	}
 	return &P
+}
+
+// WriteModel writes the probability model P to the given file
+func WriteModel(P *map[string]map[string]float64, filepath string) {
+	obj, err := json.MarshalIndent(P, "", "	")
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(string(obj))
+
+	if err := ioutil.WriteFile(filepath, obj, 0644); err != nil {
+		fmt.Println(err)
+	}
 }

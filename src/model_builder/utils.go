@@ -1,5 +1,43 @@
 package main
 
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+)
+
+// FrequencyObj stores a list of all tokens (1-grams)
+// that appear in a file, as well as counts of the number
+// of times the n-grams and (n-1)-grams made from those
+// tokens appear
+type FrequencyObj struct {
+	tokens  []string
+	n1grams *map[string]int
+	ngrams  *map[string]int
+}
+
+// ProbabilityModel is just a 2-layer nested map of the following form:
+// 		ProbabilityModel[(n-1)-gram][token] = probability of that (n-1)-gram
+// 		being followed by that token
+type ProbabilityModel map[string]map[string]float64
+
+// WriteModel writes the probability model P to the given file
+func (P *ProbabilityModel) WriteModel(filepath string) {
+	file, err := os.Create(filepath)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	encoder := json.NewEncoder(file)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "	")
+
+	err = encoder.Encode(P)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
 func keys(m *map[string]int) []string {
 	keys := make([]string, len(*m))
 	i := 0

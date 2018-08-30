@@ -32,7 +32,7 @@ func mergeMaps(maps ...*map[string]int) *map[string]int {
 
 // This is a simple merging of an array of FrequencyObj objects
 // into one. This would be so much easier in JavaScript.
-func mergeFreqObjs(frequencyObjs ...*FrequencyObj) FrequencyObj {
+func mergeFreqObjs(frequencyObjs ...*FrequencyObj) ([]string, *map[string]int, *map[string]int) {
 	tokens := make([][]string, len(frequencyObjs))
 	for i := range frequencyObjs {
 		tokens[i] = frequencyObjs[i].tokens
@@ -48,8 +48,5 @@ func mergeFreqObjs(frequencyObjs ...*FrequencyObj) FrequencyObj {
 		ngrams[i] = frequencyObjs[i].ngrams
 	}
 
-	return FrequencyObj{
-		tokens:  mergeArraysUniq(tokens...),
-		n1grams: mergeMaps(n1grams...),
-		ngrams:  mergeMaps(ngrams...)}
+	return mergeArraysUniq(tokens...), mergeMaps(n1grams...), mergeMaps(ngrams...)
 }

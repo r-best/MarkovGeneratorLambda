@@ -54,14 +54,14 @@ func main() {
 	}
 	close(ch)
 
-	// Sum all the frequency data together
-	frequency := mergeFreqObjs(frequencies...)
+	// Collect the frequency data from all the FrequencyObjs
+	tokens, n1grams, ngrams := mergeFreqObjs(frequencies...)
 
 	// Use the frequencies to calculate the probability
 	// of each ngram given each (n-1)gram
 	// I wish this part could be parallelized, it's
 	// the part that takes the majority of the runtime
-	P := CalculateProbabilities(&frequency)
+	P := CalculateProbabilities(tokens, n1grams, ngrams)
 
 	fmt.Println(P)
 
@@ -172,11 +172,7 @@ func CountFrequencies(lines []string, N int) *FrequencyObj {
 // CalculateProbabilities takes in a FrequencyObj and uses the frequency data
 // it holds to calculate for every (n-1)-gram, what is the probability each
 // possible token has of occurring next
-func CalculateProbabilities(freq *FrequencyObj) *ProbabilityModel {
-	tokens := (*freq).tokens
-	n1grams := (*freq).n1grams
-	ngrams := (*freq).ngrams
-
+func CalculateProbabilities(tokens []string, n1grams *map[string]int, ngrams *map[string]int) *ProbabilityModel {
 	P := make(ProbabilityModel)
 	for n1gram := range *n1grams {
 		P[n1gram] = make(map[string]float64)

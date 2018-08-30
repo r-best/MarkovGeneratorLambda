@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// N : value of n to use for n-grams
+var N = 3
+
+// OutputFilePath : path to the file where the probability model will be written
+var OutputFilePath = "./outputbooyah.json"
+
 // FrequencyObj stores a list of all tokens (1-grams)
 // that appear in a file, as well as counts of the number
 // of times the n-grams and (n-1)-grams made from those
@@ -25,11 +31,22 @@ type FrequencyObj struct {
 // 		being followed by that token
 type ProbabilityModel map[string]map[string]float64
 
-// N : value of n to use for n-grams
-var N = 3
+// WriteModel writes the probability model P to the given file
+func (P *ProbabilityModel) WriteModel(filepath string) {
+	file, err := os.Create(filepath)
+	if err != nil {
+		fmt.Println(err)
+	}
 
-// OutputFilePath : path to the file where the probability model will be written
-var OutputFilePath = "./outputbooyah.json"
+	encoder := json.NewEncoder(file)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "	")
+
+	err = encoder.Encode(P)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
 
 func main() {
 	// Read each file into a string array
@@ -63,9 +80,7 @@ func main() {
 	// the part that takes the majority of the runtime
 	P := CalculateProbabilities(tokens, n1grams, ngrams)
 
-	fmt.Println(P)
-
-	WriteModel(P, OutputFilePath)
+	P.WriteModel(OutputFilePath)
 }
 
 // ReadFiles takes in a list of files/folders and recursively
@@ -184,18 +199,4 @@ func CalculateProbabilities(tokens []string, n1grams *map[string]int, ngrams *ma
 		}
 	}
 	return &P
-}
-
-// WriteModel writes the probability model P to the given file
-func WriteModel(P *ProbabilityModel, filepath string) {
-	obj, err := json.MarshalIndent(P, "", "	")
-
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(string(obj))
-
-	if err := ioutil.WriteFile(filepath, obj, 0644); err != nil {
-		fmt.Println(err)
-	}
 }

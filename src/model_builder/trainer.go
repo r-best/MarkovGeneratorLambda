@@ -95,13 +95,13 @@ func FormatText(text string) []string {
 	// Some helpful regexes that we'll need later
 	directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
 	dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
-	directionTag := regexp.MustCompile(`(\(.*?\))`) // Match a direction (within another line)
+	directionTag := regexp.MustCompile(`\((.*?)\)`) // Match a direction (within another line)
 	speakerTag := regexp.MustCompile(`([A-Z]*:)`)   // Match speaker at start of dialogue line
 
 	text = "<start>\n<scene>\n" + text + "\n</scene>\n<end>" // Add start and end tags to text
 
-	lines := strings.Split(text, "\n")                 // Split text on newlines
-	lines[2] = "<lsetting>" + lines[2] + "</lsetting>" // Add <lsetting> tag to setting of first scene
+	lines := strings.Split(text, "\n")                   // Split text on newlines
+	lines[2] = "<lsetting> " + lines[2] + " </lsetting>" // Add <lsetting> tag to setting of first scene
 	for j := 0; j < len(lines); j++ {
 		// If we find 3 blank lines, its a scene change
 		if lines[j] == "" && lines[j+1] == "" && lines[j+2] == "" {

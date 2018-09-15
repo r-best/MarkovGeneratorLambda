@@ -1,52 +1,79 @@
-package main
+package cmd
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"regexp"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	utils "markovgenerator/internal"
 )
 
+func init() {
+	rootCmd.AddCommand(trainCmd)
+}
+
 // N : value of n to use for n-grams
 var N = 3
 
-// OutputFilePath : path to the file where the probability model will be written
-var OutputFilePath = "./outputbooyah.json"
+var trainCmd = &cobra.Command{
+	Use:   "train",
+	Short: "Train the model",
+	Long:  ``,
+	Args:  cobra.MinimumNArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		// Read each file into a string array
+		files := utils.ReadFiles(args[1:]...)
 
-func main() {
-	// Read each file into a string array
-	files := utils.ReadFiles("../../training_raw/test")
+		// Format the text & calculate the ngram
+		// frequencies of each file in parallel
+		ch := make(chan *FrequencyObj)
+		for _, text := range files {
+			go func(text string, ch chan *FrequencyObj) {
+				formattedLines := FormatText(text)
+				freq := CountFrequencies(formattedLines, N)
+				ch <- freq
+			}(text, ch)
+		}
 
-	// Format the text & calculate the ngram
-	// frequencies of each file in parallel
-	ch := make(chan *FrequencyObj)
-	for _, text := range files {
-		go func(text string, ch chan *FrequencyObj) {
-			formattedLines := FormatText(text)
-			freq := CountFrequencies(formattedLines, N)
-			ch <- freq
-		}(text, ch)
-	}
+		// Read the frequency data from each goroutine
+		// as they complete, closing the channel when done
+		frequencies := make([]*FrequencyObj, len(files))
+		for i := range files {
+			frequencies[i] = <-ch
+		}
+		close(ch)
 
-	// Read the frequency data from each goroutine
-	// as they complete, closing the channel when done
-	frequencies := make([]*FrequencyObj, len(files))
-	for i := range files {
-		frequencies[i] = <-ch
-	}
-	close(ch)
+		// Collect the frequency data from all the FrequencyObjs
+		tokens, n1grams, ngrams := mergeFreqObjs(frequencies...)
 
-	// Collect the frequency data from all the FrequencyObjs
-	tokens, n1grams, ngrams := mergeFreqObjs(frequencies...)
+		// Use the frequencies to calculate the probability
+		// of each ngram given each (n-1)gram
+		// I wish this part could be parallelized, it's
+		// the part that takes the majority of the runtime
+		P := CalculateProbabilities(tokens, n1grams, ngrams)
 
-	// Use the frequencies to calculate the probability
-	// of each ngram given each (n-1)gram
-	// I wish this part could be parallelized, it's
-	// the part that takes the majority of the runtime
-	P := CalculateProbabilities(tokens, n1grams, ngrams)
-
-	P.WriteModel(OutputFilePath)
+		P.WriteModel(args[0])
+	},
 }
+
+// FrequencyObj stores a list of all tokens (1-grams)
+// that appear in a file, as well as counts of the number
+// of times the n-grams and (n-1)-grams made from those
+// tokens appear
+type FrequencyObj struct {
+	tokens  []string
+	n1grams *map[string]int
+	ngrams  *map[string]int
+}
+
+// ProbabilityModel is just a 2-layer nested map of the following form:
+// 		ProbabilityModel[(n-1)-gram][token] = probability of that (n-1)-gram
+// 		being followed by that token
+type ProbabilityModel map[string]map[string]float64
 
 // FormatText takes in a string of training data (one episode of seinfeld)
 // and applies preprocessing/formatting rules so it can be used to build
@@ -126,4 +153,72 @@ func CalculateProbabilities(tokens []string, n1grams *map[string]int, ngrams *ma
 		}
 	}
 	return &P
+}
+
+// WriteModel writes the probability model P to the given file
+func (P *ProbabilityModel) WriteModel(filepath string) {
+	file, err := os.Create(filepath)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	encoder := json.NewEncoder(file)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "	")
+
+	err = encoder.Encode(P)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func keys(m *map[string]int) []string {
+	keys := make([]string, len(*m))
+	i := 0
+	for k := range *m {
+		keys[i] = k
+		i++
+	}
+	return keys
+}
+
+func mergeArraysUniq(arrays ...[]string) []string {
+	temp := make(map[string]int)
+	for i := range arrays {
+		for j := range arrays[i] {
+			temp[arrays[i][j]] = 1
+		}
+	}
+
+	return keys(&temp)
+}
+
+func mergeMaps(maps ...*map[string]int) *map[string]int {
+	for i := range maps[1:len(maps)] {
+		for k, v := range *maps[i+1] {
+			(*maps[0])[k] += v
+		}
+	}
+	return maps[0]
+}
+
+// This is a simple merging of an array of FrequencyObj objects
+// into one. This would be so much easier in JavaScript.
+func mergeFreqObjs(frequencyObjs ...*FrequencyObj) ([]string, *map[string]int, *map[string]int) {
+	tokens := make([][]string, len(frequencyObjs))
+	for i := range frequencyObjs {
+		tokens[i] = frequencyObjs[i].tokens
+	}
+
+	n1grams := make([]*map[string]int, len(frequencyObjs))
+	for i := range frequencyObjs {
+		n1grams[i] = frequencyObjs[i].n1grams
+	}
+
+	ngrams := make([]*map[string]int, len(frequencyObjs))
+	for i := range frequencyObjs {
+		ngrams[i] = frequencyObjs[i].ngrams
+	}
+
+	return mergeArraysUniq(tokens...), mergeMaps(n1grams...), mergeMaps(ngrams...)
 }

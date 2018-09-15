@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,29 +11,26 @@ import (
 	utils "markovgenerator/internal"
 )
 
-func init() {
-	rootCmd.AddCommand(trainCmd)
-}
-
 // N : value of n to use for n-grams
 var N = 3
 
+var outputFile = "model.json"
+
 var trainCmd = &cobra.Command{
-	Use:   "train",
+	Use:   "train <training directory>",
 	Short: "Train the model",
 	Long:  ``,
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Read each file into a string array
-		files := utils.ReadFiles(args[1:]...)
+		files := utils.ReadFiles(args[0])
 
 		// Format the text & calculate the ngram
 		// frequencies of each file in parallel
 		ch := make(chan *FrequencyObj)
 		for _, text := range files {
 			go func(text string, ch chan *FrequencyObj) {
-				formattedLines := FormatText(text)
-				freq := CountFrequencies(formattedLines, N)
+				freq := CountFrequencies(text, N)
 				ch <- freq
 			}(text, ch)
 		}
@@ -42,8 +38,10 @@ var trainCmd = &cobra.Command{
 		// Read the frequency data from each goroutine
 		// as they complete, closing the channel when done
 		frequencies := make([]*FrequencyObj, len(files))
-		for i := range files {
+		i := 0
+		for range files {
 			frequencies[i] = <-ch
+			i++
 		}
 		close(ch)
 
@@ -56,7 +54,7 @@ var trainCmd = &cobra.Command{
 		// the part that takes the majority of the runtime
 		P := CalculateProbabilities(tokens, n1grams, ngrams)
 
-		P.WriteModel(args[0])
+		P.WriteModel(outputFile)
 	},
 }
 
@@ -75,52 +73,14 @@ type FrequencyObj struct {
 // 		being followed by that token
 type ProbabilityModel map[string]map[string]float64
 
-// FormatText takes in a string of training data (one episode of seinfeld)
-// and applies preprocessing/formatting rules so it can be used to build
-// a model. Returns the formatted string to the given channel.
-func FormatText(text string) []string {
-	// Some helpful regexes that we'll need later
-	directionLine := regexp.MustCompile(`^[\[\(]`)  // Match a line that is a stage direction
-	dialogueLine := regexp.MustCompile(`^[A-Z]*:`)  // Match a line of dialogue
-	directionTag := regexp.MustCompile(`\((.*?)\)`) // Match a direction (within another line)
-	speakerTag := regexp.MustCompile(`([A-Z]*:)`)   // Match speaker at start of dialogue line
-
-	text = "<start>\n<scene>\n" + text + "\n</scene>\n<end>" // Add start and end tags to text
-
-	lines := strings.Split(text, "\n")                   // Split text on newlines
-	lines[2] = "<lsetting> " + lines[2] + " </lsetting>" // Add <lsetting> tag to setting of first scene
-	for j := 0; j < len(lines); j++ {
-		// If we find 3 blank lines, its a scene change
-		if lines[j] == "" && lines[j+1] == "" && lines[j+2] == "" {
-			// Add closing scene tag
-			lines[j] = "</scene>"
-			for lines[j+1] == "" { // Skip blank lines until we reach next scene
-				j = j + 1
-			}
-			lines[j] = "<scene>"
-			lines[j+1] = "<lsetting> " + lines[j+1] + " </lsetting>"
-			continue
-		}
-
-		if dialogueLine.MatchString(lines[j]) { // If this line is dialogue
-			lines[j] = "<ldialogue> " + lines[j] + " </ldialogue>"
-			lines[j] = directionTag.ReplaceAllString(lines[j], "<direction> ${1} </direction>")
-			lines[j] = speakerTag.ReplaceAllString(lines[j], "<speaker> ${1} </speaker>")
-		} else if directionLine.MatchString(lines[j]) { // If this line is a stage direction
-			lines[j] = "<ldirection> " + lines[j] + " </ldirection>"
-		}
-	}
-	return lines
-}
-
 // CountFrequencies takes in an array of the lines of a training file and a value of N
 // to use, and generates all the n-grams and (n-1)-grams it can find, returning the
 // information in a new FrequencyObj
-func CountFrequencies(lines []string, N int) *FrequencyObj {
+func CountFrequencies(text string, N int) *FrequencyObj {
 	tokens := make(map[string]int, 0) // Array of all tokens (1-grams)
 	n1grams := make(map[string]int)   // Map of all (n-1)-grams to their frequencies
 	ngrams := make(map[string]int)    // Map of all n-grams to their frequencies
-	for _, line := range lines {
+	for _, line := range strings.Split(text, "\n") {
 		words := strings.Fields(line)
 
 		if len(words) < N {

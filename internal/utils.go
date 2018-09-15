@@ -11,14 +11,12 @@ import (
 // iterates through them, reading in the text from
 // each file as a string and finally returning a
 // string array of all of them
-func ReadFiles(filepath ...string) []string {
-	ret := make([]string, 0, 10)
-	for _, v := range filepath {
-		_readFiles(v, &ret)
-	}
+func ReadFiles(filepath string) map[string]string {
+	ret := make(map[string]string)
+	_readFiles(filepath, &ret)
 	return ret
 }
-func _readFiles(currentFile string, files *[]string) {
+func _readFiles(currentFile string, files *map[string]string) {
 	file, err := os.Stat(currentFile)
 	if err != nil {
 		fmt.Printf("Error accessing %s\n", currentFile)
@@ -37,7 +35,7 @@ func _readFiles(currentFile string, files *[]string) {
 	} else {
 		// Read file in as string
 		if b, err := ioutil.ReadFile(currentFile); err == nil {
-			*files = append(*files, string(b))
+			(*files)[currentFile] = string(b)
 		} else {
 			fmt.Printf("Error reading file %s, skipping it\n", currentFile)
 			return

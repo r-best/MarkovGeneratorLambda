@@ -13,6 +13,12 @@ var rootCmd = &cobra.Command{
 	Long:  ``,
 }
 
+func init() {
+	rootCmd.AddCommand(trainCmd)
+	rootCmd.AddCommand(formatCmd)
+}
+
+// Execute is the main function of Cobra
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
